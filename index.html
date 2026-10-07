@@ -184,19 +184,26 @@ jukuMarker.bindPopup(()=>{
   if(t) h+=`<div class="meta">奉還町一丁目は番地で中学校が分かれる町です。<br>`+t.r.map(([c,r])=>`${esc(c)}：${esc(r)}`).join('<br>')+`</div>`;
   return h+'</div>';
 },{maxWidth:360,autoPanPaddingTopLeft:L.point(panelW(),20)});
-document.getElementById('juku').onclick=()=>{map.setView(J.ll,15); jukuMarker.openPopup(); if(innerWidth<=640) document.getElementById('panel').classList.add('closed');};
+document.getElementById('juku').onclick=()=>{userMoved=true; map.setView(J.ll,15); jukuMarker.openPopup(); if(innerWidth<=640) document.getElementById('panel').classList.add('closed');};
 onZoom();
 document.getElementById('showpins').onchange=e=>{ if(e.target.checked){map.addLayer(schoolLayer); onZoom();} else {map.removeLayer(schoolLayer); map.removeLayer(schoolNames);} };
 
 // 全体に合わせる
-const all=L.featureGroup(Object.values(zoneLayer)); map.fitBounds(all.getBounds(),{paddingTopLeft:[panelW(),innerWidth>640?10:70],paddingBottomRight:[10,10]});
+const all=L.featureGroup(Object.values(zoneLayer));
+// 読み込み直後は枠の大きさが0のことがある（アプリ内ブラウザなど）。大きさが決まるまで、利用者が動かす前なら全体を表示し直す
+let userMoved=false;
+['mousedown','touchstart','wheel','keydown'].forEach(ev=>map.getContainer().addEventListener(ev,()=>{userMoved=true;},{passive:true}));
+function fitAll(){ const sz=map.getSize(); if(!sz.x||!sz.y) return; map.fitBounds(all.getBounds(),{paddingTopLeft:[panelW(),innerWidth>640?10:70],paddingBottomRight:[10,10]}); }
+fitAll();
+window.addEventListener('load',()=>{ map.invalidateSize(); if(!userMoved) fitAll(); });
+if(window.ResizeObserver) new ResizeObserver(()=>{ map.invalidateSize(); if(!userMoved) fitAll(); }).observe(map.getContainer());
 
 // 中学校区の選択
 const sel=document.getElementById('sel');
 DATA.zones.map(z=>z.n).sort((a,b)=>a.localeCompare(b,'ja')).forEach(n=>{const o=document.createElement('option');o.value=n;o.textContent=n;sel.appendChild(o);});
 let hi=null;
 sel.addEventListener('change',()=>{
-  map.closePopup(); if(hi){hi.remove();hi=null;}
+  userMoved=true; map.closePopup(); if(hi){hi.remove();hi=null;}
   const n=sel.value; if(!n) return;
   const z=DATA.zones.find(z=>z.n===n);
   hi=L.geoJSON(gj(z.t,z.g),{style:{color:'#e63946',weight:4,fill:false,interactive:false}}).addTo(map);
@@ -215,7 +222,7 @@ q.addEventListener('input',()=>{
     const b=document.createElement('button');
     const who=t.s==='whole'?t.c[0]:(t.s==='split'?t.c.join('・')+'（分かれる）':'—');
     b.innerHTML=`${esc(t.n)}<span class="k">${esc(t.k)}｜${esc(who)}</span>`;
-    b.onclick=()=>{map.fitBounds(t.layer.getBounds(),{maxZoom:15,paddingTopLeft:[panelW()+40,60],paddingBottomRight:[40,40]}); t.layer.openPopup(); if(innerWidth<=640) document.getElementById('panel').classList.add('closed');};
+    b.onclick=()=>{userMoved=true; map.fitBounds(t.layer.getBounds(),{maxZoom:15,paddingTopLeft:[panelW()+40,60],paddingBottomRight:[40,40]}); t.layer.openPopup(); if(innerWidth<=640) document.getElementById('panel').classList.add('closed');};
     hits.appendChild(b);
   });
 });
